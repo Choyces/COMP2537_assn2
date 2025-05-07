@@ -38,7 +38,8 @@ app.use(session({
     secret: node_session_secret,
 	store: mongoStore, //default is memory store 
 	saveUninitialized: false, 
-	resave: true
+	resave: true,
+	cookie: { maxAge: expireTime } // 1 day or whatever you want
 }
 ));
 
