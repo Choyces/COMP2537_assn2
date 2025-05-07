@@ -114,7 +114,6 @@ app.get('/login', (req,res) => {
 });
 
 app.post('/submitUser', async (req,res) => {
-    console.log("creating user");
 	var email = req.body.email;
 	var username = req.body.username;
     var password = req.body.password;
@@ -232,10 +231,10 @@ app.get('/logout', (req,res) => {
 
 app.use(express.static(__dirname + "/public"));
 
-app.get('/*splat', (req,res) => {
-	res.status(404);
-	res.send("Page not found - 404");
-})
+app.use((req, res) => {
+	res.status(404).send("Page not found - 404 cool!");
+});
+
 
 app.listen(port, () => {
 	console.log("Node application listening on port "+port);
