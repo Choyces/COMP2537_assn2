@@ -1,7 +1,5 @@
-
-require("./utils.js");
-
 require('dotenv').config();
+const fs = require('fs');
 const express = require('express');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
@@ -9,11 +7,8 @@ const bcrypt = require('bcrypt');
 const saltRounds = 12;
 
 const port = process.env.PORT || 3000;
-
 const app = express();
-
 const Joi = require("joi");
-
 
 const expireTime = 24 * 60 * 60 * 1000; //expires after 1 day  (hours * minutes * seconds * millis)
 
@@ -27,7 +22,7 @@ const mongodb_session_secret = process.env.MONGODB_SESSION_SECRET;
 const node_session_secret = process.env.NODE_SESSION_SECRET;
 /* END secret section */
 
-var {database} = include('databaseConnection');
+var {database} = require('./databaseConnection');
 
 const userCollection = database.db(mongodb_database).collection('users');
 
@@ -49,7 +44,8 @@ app.use(session({
 ));
 
 app.get('/', (req,res) => {
-    res.send("<h1>Hello World!</h1>");
+        let html = fs.readFileSync(__dirname + '/public/index.html', 'utf8');
+        res.send(html);
 });
 
 app.get('/nosql-injection', async (req,res) => {
@@ -82,38 +78,6 @@ app.get('/nosql-injection', async (req,res) => {
     res.send(`<h1>Hello ${username}</h1>`);
 });
 
-app.get('/about', (req,res) => {
-    var color = req.query.color;
-
-    res.send("<h1 style='color:"+color+";'>Patrick Guichon</h1>");
-});
-
-app.get('/contact', (req,res) => {
-    var missingEmail = req.query.missing;
-    var html = `
-        email address:
-        <form action='/submitEmail' method='post'>
-            <input name='email' type='text' placeholder='email'>
-            <button>Submit</button>
-        </form>
-    `;
-    if (missingEmail) {
-        html += "<br> email is required";
-    }
-    res.send(html);
-});
-
-app.post('/submitEmail', (req,res) => {
-    var email = req.body.email;
-    if (!email) {
-        res.redirect('/contact?missing=1');
-    }
-    else {
-        res.send("Thanks for subscribing with your email: "+email);
-    }
-});
-
-
 app.get('/createUser', (req,res) => {
     var html = `
     create user
@@ -140,6 +104,7 @@ app.get('/login', (req,res) => {
 });
 
 app.post('/submitUser', async (req,res) => {
+    console.log("creating user");
     var username = req.body.username;
     var password = req.body.password;
 
@@ -161,7 +126,12 @@ app.post('/submitUser', async (req,res) => {
 	await userCollection.insertOne({username: username, password: hashedPassword});
 	console.log("Inserted user");
 
-    var html = "successfully created user";
+    var html = `
+    successfully created user!!!!
+        <form action="/login">
+        <input type="submit" value="login" />
+    </form>
+    `;
     res.send(html);
 });
 
@@ -173,7 +143,11 @@ app.post('/loggingin', async (req,res) => {
 	const validationResult = schema.validate(username);
 	if (validationResult.error != null) {
 	   console.log(validationResult.error);
-	   res.redirect("/login");
+       var html = `
+        Invalid username/password combination
+        <a href="/login"> try again </a>
+       `;
+       res.send(html);
 	   return;
 	}
 
@@ -181,8 +155,11 @@ app.post('/loggingin', async (req,res) => {
 
 	console.log(result);
 	if (result.length != 1) {
-		console.log("user not found");
-		res.redirect("/login");
+        var html = `
+        User not found
+        <a href="/login"> try again </a>
+       `;
+       res.send(html);
 		return;
 	}
 	if (await bcrypt.compare(password, result[0].password)) {
@@ -191,25 +168,57 @@ app.post('/loggingin', async (req,res) => {
 		req.session.username = username;
 		req.session.cookie.maxAge = expireTime;
 
-		res.redirect('/loggedIn');
+		res.redirect('/loggedin');
 		return;
 	}
 	else {
-		console.log("incorrect password");
-		res.redirect("/login");
-		return;
+        var html = `
+        Invalid password
+        <a href="/login"> try again </a>
+       `;
+       res.send(html);
 	}
 });
-
-app.get('/loggedin', (req,res) => {
+app.get('/loggedin', (req, res) => {
     if (!req.session.authenticated) {
-        res.redirect('/login');
+        return res.redirect('/login');
     }
-    var html = `
-    You are logged in!
+    const html = `
+        <h1>Hello, ${req.session.username}</h1>
+        <form action="/members">
+            <input type="submit" value="goto members area" />
+        </form>
+        <form action="/logout">
+            <input type="submit" value="Logout" />
+        </form>
     `;
     res.send(html);
 });
+
+app.get('/members', (req, res) => {
+    if (!req.session.authenticated) {
+        return res.redirect('/login');
+    }
+    const num = Math.floor(Math.random() * 3);
+    if (num == 1) {
+        var cat = "<img src='/fluffy.gif' style='width:250px;'></img>";
+    }
+    else if (num == 2) {
+        var cat = "<img src='/fatty.gif' style='width:250px;'></img>";
+    }
+    else {
+        var cat = "<img src='/socks.gif' style='width:250px;'></img>";
+    }
+    const html = `
+        <h1>Hello, ${req.session.username}</h1>
+        ${cat}
+        <form action="/logout">
+            <input type="submit" value="Logout" />
+        </form>
+    `;
+    res.send(html);
+});
+
 
 app.get('/logout', (req,res) => {
 	req.session.destroy();
@@ -219,26 +228,9 @@ app.get('/logout', (req,res) => {
     res.send(html);
 });
 
-
-app.get('/cat/:id', (req,res) => {
-
-    var cat = req.params.id;
-
-    if (cat == 1) {
-        res.send("Fluffy: <img src='/fluffy.gif' style='width:250px;'>");
-    }
-    else if (cat == 2) {
-        res.send("Socks: <img src='/socks.gif' style='width:250px;'>");
-    }
-    else {
-        res.send("Invalid cat id: "+cat);
-    }
-});
-
-
 app.use(express.static(__dirname + "/public"));
 
-app.get("*", (req,res) => {
+app.get('/*splat', (req,res) => {
 	res.status(404);
 	res.send("Page not found - 404");
 })
