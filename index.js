@@ -43,8 +43,20 @@ app.use(session({
 ));
 
 app.get('/', (req,res) => {
-        let html = fs.readFileSync(__dirname + '/public/index.html', 'utf8');
-        res.send(html);
+	let html = fs.readFileSync(__dirname + '/public/index.html', 'utf8');
+	if (req.session.authenticated) {
+        html = `
+		<h1>Hello, ${req.session.username}</h1><br>
+        <form action="/members">
+            <input type="submit" value="goto members area" />
+        </form>
+        <form action="/logout">
+            <input type="submit" value="Logout" />
+        </form>`
+		;
+	}
+		res.send(html);
+
 });
 
 app.get('/nosql-injection', async (req,res) => {
@@ -72,8 +84,6 @@ app.get('/nosql-injection', async (req,res) => {
 
 	const result = await userCollection.find({username: username}).project({username: 1, password: 1, _id: 1}).toArray();
 
-	console.log(result);
-
     res.send(`<h1>Hello ${username}</h1>`);
 });
 
@@ -95,8 +105,8 @@ app.get('/login', (req,res) => {
     var html = `
     log in
     <form action='/loggingin' method='post'>
-    <input username='email' type='text' placeholder='email'>
-    <input username='password' type='password' placeholder='password'>
+    <input name='email' type='text' placeholder='email'>
+    <input name='password' type='password' placeholder='password'>
     <button>Submit</button>
     </form>
     `;
@@ -159,7 +169,7 @@ app.post('/loggingin', async (req,res) => {
 	   return;
 	}
 
-	const result = await userCollection.find({email: email}).project({email: 1, password: 1, _id: 1}).toArray();
+	const result = await userCollection.find({email: email}).project({email: 1, password: 1, _id: 1, username: 1}).toArray();
 
 	console.log(result);
 	if (result.length != 1) {
@@ -175,8 +185,8 @@ app.post('/loggingin', async (req,res) => {
 		req.session.authenticated = true;
 		req.session.email = email;
 		req.session.cookie.maxAge = expireTime;
-
-		res.redirect('/main');
+		req.session.username = result[0].username;
+		res.redirect('/');
 		return;
 	}
 	else {
@@ -187,11 +197,28 @@ app.post('/loggingin', async (req,res) => {
        res.send(html);
 	}
 });
-app.get('/main', (req, res) => {
+
+app.get('/members', (req, res) => {
     if (!req.session.authenticated) {
         return res.redirect('/login');
     }
-    let html = fs.readFileSync(__dirname + '/public/main.html', 'utf8');
+    const num = Math.floor(Math.random() * 3);
+    if (num == 1) {
+        var cat = "<img src='/fluffy.gif' style='width:250px;'></img>";
+    }
+    else if (num == 2) {
+        var cat = "<img src='/fatty.gif' style='width:250px;'></img>";
+    }
+    else {
+        var cat = "<img src='/socks.gif' style='width:250px;'></img>";
+    }
+    const html = `
+        <h1>Hello, ${req.session.username}</h1>
+        ${cat}
+        <form action="/logout">
+            <input type="submit" value="Logout" />
+        </form>
+    `;
     res.send(html);
 });
 
