@@ -18,7 +18,6 @@ const mongodb_user = process.env.MONGODB_USER;
 const mongodb_password = process.env.MONGODB_PASSWORD;
 const mongodb_database = process.env.MONGODB_DATABASE;
 const mongodb_session_secret = process.env.MONGODB_SESSION_SECRET;
-
 const node_session_secret = process.env.NODE_SESSION_SECRET;
 /* END secret section */
 
@@ -83,6 +82,7 @@ app.get('/createUser', (req,res) => {
     create user
     <form action='/submitUser' method='post'>
     <input name='username' type='text' placeholder='username'>
+	<input name='email' type='text' placeholder='email'>
     <input name='password' type='password' placeholder='password'>
     <button>Submit</button>
     </form>
@@ -95,8 +95,8 @@ app.get('/login', (req,res) => {
     var html = `
     log in
     <form action='/loggingin' method='post'>
-    <input name='username' type='text' placeholder='username'>
-    <input name='password' type='password' placeholder='password'>
+    <input username='email' type='text' placeholder='email'>
+    <input username='password' type='password' placeholder='password'>
     <button>Submit</button>
     </form>
     `;
@@ -105,25 +105,33 @@ app.get('/login', (req,res) => {
 
 app.post('/submitUser', async (req,res) => {
     console.log("creating user");
-    var username = req.body.username;
+	var email = req.body.email;
+	var username = req.body.username;
     var password = req.body.password;
 
 	const schema = Joi.object(
 		{
 			username: Joi.string().alphanum().max(20).required(),
+			email: Joi.string().max(20).required(),
 			password: Joi.string().max(20).required()
 		});
 	
-	const validationResult = schema.validate({username, password});
+	const validationResult = schema.validate({username, email, password});
 	if (validationResult.error != null) {
-	   console.log(validationResult.error);
-	   res.redirect("/createUser");
-	   return;
+		var html = `
+		${validationResult.error}
+		<br>
+			Try again?
+			<form action="/createuser">
+			<input type="submit" value="signup" />
+		</form>
+		`;
+		res.send(html);
    }
 
     var hashedPassword = await bcrypt.hash(password, saltRounds);
 	
-	await userCollection.insertOne({username: username, password: hashedPassword});
+	await userCollection.insertOne({username: username, email: email, password: hashedPassword});
 	console.log("Inserted user");
 
     var html = `
@@ -136,22 +144,22 @@ app.post('/submitUser', async (req,res) => {
 });
 
 app.post('/loggingin', async (req,res) => {
-    var username = req.body.username;
+    var email = req.body.email;
     var password = req.body.password;
 
 	const schema = Joi.string().max(20).required();
-	const validationResult = schema.validate(username);
+	const validationResult = schema.validate(email);
 	if (validationResult.error != null) {
 	   console.log(validationResult.error);
        var html = `
-        Invalid username/password combination
+        Invalid email/password combination
         <a href="/login"> try again </a>
        `;
        res.send(html);
 	   return;
 	}
 
-	const result = await userCollection.find({username: username}).project({username: 1, password: 1, _id: 1}).toArray();
+	const result = await userCollection.find({email: email}).project({email: 1, password: 1, _id: 1}).toArray();
 
 	console.log(result);
 	if (result.length != 1) {
@@ -165,10 +173,10 @@ app.post('/loggingin', async (req,res) => {
 	if (await bcrypt.compare(password, result[0].password)) {
 		console.log("correct password");
 		req.session.authenticated = true;
-		req.session.username = username;
+		req.session.email = email;
 		req.session.cookie.maxAge = expireTime;
 
-		res.redirect('/loggedin');
+		res.redirect('/main');
 		return;
 	}
 	else {
@@ -179,46 +187,13 @@ app.post('/loggingin', async (req,res) => {
        res.send(html);
 	}
 });
-app.get('/loggedin', (req, res) => {
+app.get('/main', (req, res) => {
     if (!req.session.authenticated) {
         return res.redirect('/login');
     }
-    const html = `
-        <h1>Hello, ${req.session.username}</h1>
-        <form action="/members">
-            <input type="submit" value="goto members area" />
-        </form>
-        <form action="/logout">
-            <input type="submit" value="Logout" />
-        </form>
-    `;
+    let html = fs.readFileSync(__dirname + '/public/main.html', 'utf8');
     res.send(html);
 });
-
-app.get('/members', (req, res) => {
-    if (!req.session.authenticated) {
-        return res.redirect('/login');
-    }
-    const num = Math.floor(Math.random() * 3);
-    if (num == 1) {
-        var cat = "<img src='/fluffy.gif' style='width:250px;'></img>";
-    }
-    else if (num == 2) {
-        var cat = "<img src='/fatty.gif' style='width:250px;'></img>";
-    }
-    else {
-        var cat = "<img src='/socks.gif' style='width:250px;'></img>";
-    }
-    const html = `
-        <h1>Hello, ${req.session.username}</h1>
-        ${cat}
-        <form action="/logout">
-            <input type="submit" value="Logout" />
-        </form>
-    `;
-    res.send(html);
-});
-
 
 app.get('/logout', (req,res) => {
 	req.session.destroy();
