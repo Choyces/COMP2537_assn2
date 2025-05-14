@@ -1,0 +1,22 @@
+<%- include("templates/header") %> 
+<div>Users:</div>
+<ul>
+  <% for (let i = 0; i < users.length; i++) { %>
+    <li><%= users[i].username %></li>
+
+    <% if (isAdmin) { %>
+      <form action="/promote" method="POST" style="display:inline;">
+        <input type="hidden" name="username" value="<%= users[i].username %>">
+        <button type="submit" class="btn btn-outline-success btn-sm">Promote to admin</button>
+      </form>
+
+      <form action="/demote" method="POST" style="display:inline;">
+        <input type="hidden" name="username" value="<%= users[i].username %>">
+        <button type="submit" class="btn btn-outline-danger btn-sm">Demote to user</button>
+      </form>
+
+      <br><br>
+    <% } %>
+  <% } %> 
+</ul>
+<%- include("templates/footer") %>
